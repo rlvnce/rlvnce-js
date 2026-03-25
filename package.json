@@ -44,5 +44,8 @@
     "corpus",
     "api-client"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }
