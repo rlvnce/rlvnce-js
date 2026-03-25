@@ -1,5 +1,8 @@
 # @rlvnce/client
 
+[![CI](https://github.com/rlvnce/rlvnce-js/actions/workflows/ci.yml/badge.svg)](https://github.com/rlvnce/rlvnce-js/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@rlvnce/client)](https://www.npmjs.com/package/@rlvnce/client)
+
 TypeScript client for the RLVNCE public API. Zero runtime dependencies — uses Node.js built-in `fetch`.
 
 ## Installation
