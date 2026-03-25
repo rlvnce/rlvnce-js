@@ -25,6 +25,117 @@ console.log(results.results);
 const corpora = await client.listCorpora();
 ```
 
+## Search
+
+### Basic search
+
+```typescript
+const results = await client.search("corpus-id", "kubernetes deployment");
+for (const hit of results.results) {
+  console.log(`${hit.title} (${hit.score})`);
+  console.log(`  ${hit.url}`);
+  console.log(`  ${hit.snippet}`);
+}
+```
+
+### Filters
+
+Narrow results by URL prefix, content type, language, source, or date ranges:
+
+```typescript
+const results = await client.search("corpus-id", "authentication", {
+  limit: 20,
+  filters: {
+    url_prefix: "https://docs.example.com/api/",  // domain/path filtering
+    content_type: "text/html",                      // MIME type (prefix match: "text/" matches text/html, text/plain)
+    lang: "en",                                     // language code
+    source_id: "source-uuid",                       // restrict to one source
+    changed_after: "2026-01-01T00:00:00Z",          // only recently changed docs
+    created_after: "2025-06-01T00:00:00Z",          // first indexed after
+    updated_before: "2026-03-01T00:00:00Z",         // last updated before
+  },
+});
+```
+
+### Attribute filters
+
+Filter on document attributes using typed operators. Two kinds of attributes are available:
+
+**System fields** (available on all corpora):
+
+| Field | Type | Operators | Description |
+|---|---|---|---|
+| `_url` | string | `prefix` | Full URL including scheme. Use for domain/path filtering. |
+| `_source` | string | `eq` | Source UUID. Filters to documents from a specific corpus source. |
+| `_content_type` | string | `eq`, `prefix` | MIME type (e.g. `text/html`, `application/pdf`). |
+| `_created_at` | datetime | `gt`, `gte`, `lt`, `lte`, `range` | When the document was first indexed. |
+| `_updated_at` | datetime | `gt`, `gte`, `lt`, `lte`, `range` | When the document was last updated. |
+
+**Corpus-defined attributes** (set via connector or attribute schema):
+
+Connectors can define custom attributes on documents (e.g. `category`, `priority`, `tags`). These are typed fields with the following types and operators:
+
+| Type | Operators |
+|---|---|
+| `string` | `eq`, `neq`, `in` |
+| `integer`, `float` | `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `range` |
+| `boolean` | `eq`, `neq` |
+| `string_array` | `eq` (any element matches), `in` |
+
+```typescript
+const results = await client.search("corpus-id", "deploy", {
+  attribute_filters: [
+    // System field: only docs from a specific source
+    { field: "_source", op: "eq", value: "01936f7b-..." },
+    // System field: only PDFs
+    { field: "_content_type", op: "eq", value: "application/pdf" },
+    // System field: updated in the last month
+    { field: "_updated_at", op: "gte", value: "2026-03-01T00:00:00Z" },
+    // Corpus-defined: category equals "guide"
+    { field: "category", op: "eq", value: "guide" },
+    // Corpus-defined: priority above 3
+    { field: "priority", op: "gte", value: 3 },
+  ],
+});
+```
+
+### Attribute boosts
+
+Boost relevance scores for documents matching attribute criteria without excluding non-matching documents:
+
+```typescript
+const results = await client.search("corpus-id", "getting started", {
+  attribute_boosts: [
+    // Boost docs from the official docs domain
+    { field: "_url", multiplier: 2.0, value: "https://docs.example.com/" },
+    // Boost guides over reference docs
+    { field: "category", multiplier: 1.5, value: "guide" },
+    // Boost all high-priority docs regardless of value
+    { field: "priority", multiplier: 1.3 },
+  ],
+});
+```
+
+### Combining filters and boosts
+
+```typescript
+const results = await client.search("corpus-id", "error handling", {
+  limit: 10,
+  offset: 0,
+  filters: {
+    url_prefix: "https://docs.example.com/",
+    lang: "en",
+    changed_after: "2026-01-01T00:00:00Z",
+  },
+  attribute_filters: [
+    { field: "category", op: "in", value: "guide,tutorial" },
+  ],
+  attribute_boosts: [
+    { field: "priority", multiplier: 2.0, value: 1 },
+  ],
+});
+```
+
 ## Configuration
 
 ```typescript
@@ -32,9 +143,19 @@ const client = new RlvnceClient({
   apiKey: "rlv_...",                          // required
   baseUrl: "https://api.rlvnce.com",         // optional (default)
   timeout: 30_000,                            // optional, ms (default: 30000)
+  maxRetries: 2,                              // optional (default: 2, set 0 to disable)
+  retryDelay: 500,                            // optional, ms (default: 500, doubles each attempt)
   fetch: customFetch,                         // optional, custom fetch impl
+  onRequest: ({ method, url, attempt }) => {  // optional, logging/telemetry hook
+    console.log(`${method} ${url} (attempt ${attempt})`);
+  },
+  onResponse: ({ status, durationMs }) => {   // optional, logging/telemetry hook
+    console.log(`${status} in ${durationMs}ms`);
+  },
 });
 ```
+
+Retries use exponential backoff with jitter. Retryable status codes: 429, 500, 502, 503, 504. Network errors and timeouts are also retried. The `Retry-After` header on 429 responses is respected.
 
 ## Methods
 
