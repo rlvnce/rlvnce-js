@@ -10,7 +10,7 @@ export async function createSubscription(
   corpusId: string,
   params: CreateSubscriptionParams,
 ): Promise<Subscription> {
-  return http.post<Subscription>(`/v1/corpora/${corpusId}/subscriptions`, params);
+  return http.post<Subscription>(`/v1/corpora/${corpusId}/subscriptions`, params, params);
 }
 
 export async function listSubscriptions(
@@ -20,5 +20,5 @@ export async function listSubscriptions(
 ): Promise<Record<string, unknown>> {
   const params: Record<string, string | undefined> = {};
   if (options?.status) params.status = options.status;
-  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/subscriptions`, params);
+  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/subscriptions`, params, options);
 }

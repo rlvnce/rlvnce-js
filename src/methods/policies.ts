@@ -1,10 +1,11 @@
 import type { HttpTransport } from "../client.js";
-import type { SearchPolicy, Policy } from "../types.js";
+import type { SearchPolicy, Policy, RequestOptions } from "../types.js";
 
 export async function updateSearchPolicy(
   http: HttpTransport,
   corpusId: string,
   policy: SearchPolicy,
+  options?: RequestOptions,
 ): Promise<Policy> {
   const hasFields = Object.values(policy).some((v) => v !== undefined);
   if (!hasFields) {
@@ -13,9 +14,9 @@ export async function updateSearchPolicy(
     );
   }
 
-  const current = await http.get<Policy>(`/v1/corpora/${corpusId}/policy`);
+  const current = await http.get<Policy>(`/v1/corpora/${corpusId}/policy`, undefined, options);
   const currentSearch = (current.search ?? {}) as Record<string, unknown>;
   return http.patch<Policy>(`/v1/corpora/${corpusId}/policy`, {
     search: { ...currentSearch, ...policy },
-  });
+  }, options);
 }

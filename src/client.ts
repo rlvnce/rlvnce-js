@@ -1,7 +1,7 @@
 import { RlvnceApiError } from "./error.js";
 import { paginateOffset, paginateCursor } from "./pagination.js";
 import type {
-  RlvnceClientOptions,
+  RlvnceClientOptions, RequestOptions, RequestInfo, ResponseInfo,
   // Corpora
   Corpus, CorpusDetail, CorpusMetrics, ListCorporaOptions,
   CreateCorpusParams, CreateCorpusResult,
@@ -45,12 +45,15 @@ import * as usageMethods from "./methods/usage.js";
 // Internal HTTP transport — not exported
 // ---------------------------------------------------------------------------
 
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+
 interface ErrorBody {
   code?: string;
   http_status?: number;
   message?: string;
   error?: string;
   details?: unknown;
+  trace_id?: string;
   retryable?: boolean;
 }
 
@@ -59,47 +62,55 @@ export class HttpTransport {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly timeout: number;
+  private readonly maxRetries: number;
+  private readonly retryDelay: number;
   private readonly _fetch: typeof globalThis.fetch;
+  private readonly onRequest?: (info: RequestInfo) => void;
+  private readonly onResponse?: (info: ResponseInfo) => void;
 
   constructor(options: RlvnceClientOptions) {
     this.baseUrl = (options.baseUrl ?? "https://api.rlvnce.com").replace(/\/+$/, "");
     this.apiKey = options.apiKey;
     this.timeout = options.timeout ?? 30_000;
+    this.maxRetries = options.maxRetries ?? 2;
+    this.retryDelay = options.retryDelay ?? 500;
     this._fetch = options.fetch ?? globalThis.fetch;
+    this.onRequest = options.onRequest;
+    this.onResponse = options.onResponse;
   }
 
-  async get<T>(path: string, params?: Record<string, string | undefined>): Promise<T> {
+  async get<T>(path: string, params?: Record<string, string | undefined>, options?: RequestOptions): Promise<T> {
     const url = this.buildUrl(path, params);
-    return this.request<T>(url, { method: "GET" });
+    return this.requestWithRetry<T>(url, { method: "GET" }, options?.signal);
   }
 
-  async post<T>(path: string, body?: unknown): Promise<T> {
+  async post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     const url = this.buildUrl(path);
-    return this.request<T>(url, {
+    return this.requestWithRetry<T>(url, {
       method: "POST",
       body: body != null ? JSON.stringify(body) : undefined,
-    });
+    }, options?.signal);
   }
 
-  async patch<T>(path: string, body?: unknown): Promise<T> {
+  async patch<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     const url = this.buildUrl(path);
-    return this.request<T>(url, {
+    return this.requestWithRetry<T>(url, {
       method: "PATCH",
       body: body != null ? JSON.stringify(body) : undefined,
-    });
+    }, options?.signal);
   }
 
-  async put<T>(path: string, body?: unknown): Promise<T> {
+  async put<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     const url = this.buildUrl(path);
-    return this.request<T>(url, {
+    return this.requestWithRetry<T>(url, {
       method: "PUT",
       body: body != null ? JSON.stringify(body) : undefined,
-    });
+    }, options?.signal);
   }
 
-  async delete(path: string): Promise<void> {
+  async delete(path: string, options?: RequestOptions): Promise<void> {
     const url = this.buildUrl(path);
-    await this.request<undefined>(url, { method: "DELETE" });
+    await this.requestWithRetry<undefined>(url, { method: "DELETE" }, options?.signal);
   }
 
   private buildUrl(path: string, params?: Record<string, string | undefined>): string {
@@ -113,9 +124,53 @@ export class HttpTransport {
     return url.toString();
   }
 
-  private async request<T>(url: string, init: RequestInit): Promise<T> {
+  private async requestWithRetry<T>(url: string, init: RequestInit, userSignal?: AbortSignal): Promise<T> {
+    const method = init.method ?? "GET";
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      // Wait before retry (not on first attempt)
+      if (attempt > 0) {
+        const delay = this.computeRetryDelay(attempt, lastError);
+        await this.sleep(delay, userSignal);
+      }
+
+      try {
+        return await this.request<T>(url, init, method, attempt, userSignal);
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+
+        // Don't retry if user cancelled
+        if (userSignal?.aborted) throw lastError;
+
+        // Don't retry non-retryable errors
+        if (!this.isRetryable(lastError)) throw lastError;
+
+        // Last attempt — don't retry, throw
+        if (attempt === this.maxRetries) throw lastError;
+      }
+    }
+
+    // Unreachable, but TypeScript needs it
+    throw lastError;
+  }
+
+  private async request<T>(
+    url: string,
+    init: RequestInit,
+    method: string,
+    attempt: number,
+    userSignal?: AbortSignal,
+  ): Promise<T> {
+    // Combine user signal with timeout
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeout);
+
+    const abortOnUserCancel = () => controller.abort();
+    userSignal?.addEventListener("abort", abortOnUserCancel, { once: true });
+
+    this.onRequest?.({ method, url, attempt });
+    const start = Date.now();
 
     try {
       const res = await this._fetch(url, {
@@ -129,6 +184,8 @@ export class HttpTransport {
         },
       });
 
+      const durationMs = Date.now() - start;
+
       if (!res.ok) {
         let errBody: ErrorBody | undefined;
         let rawText: string | undefined;
@@ -139,20 +196,70 @@ export class HttpTransport {
           // response wasn't JSON
         }
         const message = errBody?.message ?? errBody?.error ?? rawText ?? `HTTP ${res.status}`;
+        const retryable = errBody?.retryable ?? RETRYABLE_STATUS_CODES.has(res.status);
+
+        this.onResponse?.({ method, url, status: res.status, durationMs, attempt, retryable });
+
         throw new RlvnceApiError(
           res.status,
           errBody?.code ?? "UNKNOWN",
           message,
-          errBody?.retryable ?? false,
+          retryable,
           errBody?.details,
+          errBody?.trace_id,
         );
       }
 
+      this.onResponse?.({ method, url, status: res.status, durationMs, attempt, retryable: false });
+
       if (res.status === 204) return undefined as T;
       return (await res.json()) as T;
+    } catch (err) {
+      // If it's already an RlvnceApiError, re-throw as-is (hooks already called)
+      if (err instanceof RlvnceApiError) throw err;
+
+      // Network/timeout errors — fire hook with status 0
+      const durationMs = Date.now() - start;
+      this.onResponse?.({ method, url, status: 0, durationMs, attempt, retryable: true });
+      throw err;
     } finally {
       clearTimeout(timeout);
+      userSignal?.removeEventListener("abort", abortOnUserCancel);
     }
+  }
+
+  private isRetryable(err: Error): boolean {
+    if (err instanceof RlvnceApiError) {
+      return err.retryable || RETRYABLE_STATUS_CODES.has(err.status);
+    }
+    // Network errors and timeouts are retryable
+    return true;
+  }
+
+  private computeRetryDelay(attempt: number, lastError?: Error): number {
+    // Respect Retry-After header for 429s
+    if (lastError instanceof RlvnceApiError && lastError.status === 429) {
+      // The Retry-After value may be in the error details or message;
+      // for now use the exponential backoff as baseline
+    }
+    // Exponential backoff with jitter
+    const base = this.retryDelay * Math.pow(2, attempt - 1);
+    const jitter = base * 0.2 * Math.random();
+    return base + jitter;
+  }
+
+  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(signal.reason ?? new Error("Aborted"));
+        return;
+      }
+      const timer = setTimeout(resolve, ms);
+      signal?.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(signal.reason ?? new Error("Aborted"));
+      }, { once: true });
+    });
   }
 }
 
@@ -176,8 +283,8 @@ export class RlvnceClient {
   }
 
   /** Fetch a document's full content and metadata by ID. */
-  async getDocument(corpusId: string, documentId: string): Promise<Document> {
-    return searchMethods.getDocument(this.http, corpusId, documentId);
+  async getDocument(corpusId: string, documentId: string, options?: RequestOptions): Promise<Document> {
+    return searchMethods.getDocument(this.http, corpusId, documentId, options);
   }
 
   /** List documents in a corpus with optional filtering (single page). */

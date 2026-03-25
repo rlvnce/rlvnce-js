@@ -4,6 +4,8 @@ export class RlvnceApiError extends Error {
   readonly code: string;
   readonly retryable: boolean;
   readonly details: unknown;
+  /** Server-side trace ID for debugging (if returned by the API). */
+  readonly traceId: string | undefined;
 
   constructor(
     status: number,
@@ -11,6 +13,7 @@ export class RlvnceApiError extends Error {
     message: string,
     retryable: boolean,
     details?: unknown,
+    traceId?: string,
   ) {
     super(message);
     this.name = "RlvnceApiError";
@@ -18,6 +21,7 @@ export class RlvnceApiError extends Error {
     this.code = code;
     this.retryable = retryable;
     this.details = details;
+    this.traceId = traceId;
   }
 }
 

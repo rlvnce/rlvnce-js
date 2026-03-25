@@ -11,6 +11,37 @@ export interface RlvnceClientOptions {
   timeout?: number;
   /** Custom fetch implementation. Defaults to globalThis.fetch. */
   fetch?: typeof globalThis.fetch;
+  /** Maximum number of retries on retryable errors (429, 500, 502, 503, 504, network). Defaults to 2. Set to 0 to disable. */
+  maxRetries?: number;
+  /** Initial retry delay in milliseconds. Doubles on each attempt. Defaults to 500. */
+  retryDelay?: number;
+  /** Called before each HTTP request. Use for logging or telemetry. */
+  onRequest?: (request: RequestInfo) => void;
+  /** Called after each HTTP response (including errors). Use for logging or telemetry. */
+  onResponse?: (response: ResponseInfo) => void;
+}
+
+/** Info passed to the onRequest hook. */
+export interface RequestInfo {
+  method: string;
+  url: string;
+  attempt: number;
+}
+
+/** Info passed to the onResponse hook. */
+export interface ResponseInfo {
+  method: string;
+  url: string;
+  status: number;
+  durationMs: number;
+  attempt: number;
+  retryable: boolean;
+}
+
+/** Options that can be passed to individual method calls. */
+export interface RequestOptions {
+  /** AbortSignal for user-initiated cancellation. */
+  signal?: AbortSignal;
 }
 
 // ---------------------------------------------------------------------------
@@ -46,13 +77,13 @@ export interface Corpus {
   [key: string]: unknown;
 }
 
-export interface ListCorporaOptions {
+export interface ListCorporaOptions extends RequestOptions {
   limit?: number;
   offset?: number;
   status?: "active" | "building" | "error";
 }
 
-export interface CreateCorpusParams {
+export interface CreateCorpusParams extends RequestOptions {
   name: string;
   description?: string;
   sources?: SourceInput[];
@@ -69,7 +100,7 @@ export interface CreateCorpusResult {
   policy?: Policy;
 }
 
-export interface UpdateCorpusParams {
+export interface UpdateCorpusParams extends RequestOptions {
   name?: string;
   description?: string;
   crawl_policy?: CrawlPolicy;
@@ -87,7 +118,7 @@ export interface DeleteCorpusResult {
   corpus_name: string;
 }
 
-export interface CloneCorpusParams {
+export interface CloneCorpusParams extends RequestOptions {
   name: string;
   description?: string;
   source_filter?: {
@@ -183,7 +214,7 @@ export interface SourceStats {
   [key: string]: unknown;
 }
 
-export interface ListSourceUrlsOptions {
+export interface ListSourceUrlsOptions extends RequestOptions {
   limit?: number;
   cursor?: string;
 }
@@ -198,7 +229,7 @@ export interface SourceUrl {
 // Search
 // ---------------------------------------------------------------------------
 
-export interface SearchOptions {
+export interface SearchOptions extends RequestOptions {
   limit?: number;
   offset?: number;
   filters?: SearchFilters;
@@ -277,7 +308,7 @@ export interface DocumentSummary {
   [key: string]: unknown;
 }
 
-export interface ListDocumentsOptions {
+export interface ListDocumentsOptions extends RequestOptions {
   source_id?: string;
   content_type?: string;
   url_prefix?: string;
@@ -287,7 +318,7 @@ export interface ListDocumentsOptions {
   cursor?: string;
 }
 
-export interface SampleDocumentsOptions {
+export interface SampleDocumentsOptions extends RequestOptions {
   n?: number;
 }
 
@@ -295,7 +326,7 @@ export interface SampleDocumentsOptions {
 // Changes
 // ---------------------------------------------------------------------------
 
-export interface ListChangesOptions {
+export interface ListChangesOptions extends RequestOptions {
   since?: string;
   limit?: number;
   cursor?: string;
@@ -314,7 +345,7 @@ export interface Change {
 // Crawls
 // ---------------------------------------------------------------------------
 
-export interface TriggerCrawlOptions {
+export interface TriggerCrawlOptions extends RequestOptions {
   force?: boolean;
   source_id?: string;
   source_url?: string;
@@ -333,12 +364,12 @@ export interface CrawlJob {
   [key: string]: unknown;
 }
 
-export interface ListCrawlsOptions {
+export interface ListCrawlsOptions extends RequestOptions {
   limit?: number;
   offset?: number;
 }
 
-export interface ListCrawlResultsOptions {
+export interface ListCrawlResultsOptions extends RequestOptions {
   status?: string;
   limit?: number;
   cursor?: string;
@@ -351,7 +382,7 @@ export interface CrawlResult {
   [key: string]: unknown;
 }
 
-export interface ListCrawlErrorsOptions {
+export interface ListCrawlErrorsOptions extends RequestOptions {
   limit?: number;
   cursor?: string;
 }
@@ -377,7 +408,7 @@ export interface CrawlSchedule {
 // Subscriptions
 // ---------------------------------------------------------------------------
 
-export interface CreateSubscriptionParams {
+export interface CreateSubscriptionParams extends RequestOptions {
   event_types: Array<"created" | "updated" | "deleted">;
   webhook_url: string;
   batch_size?: number;
@@ -395,7 +426,7 @@ export interface Subscription {
   [key: string]: unknown;
 }
 
-export interface ListSubscriptionsOptions {
+export interface ListSubscriptionsOptions extends RequestOptions {
   status?: "active" | "paused" | "disabled";
 }
 
@@ -403,7 +434,7 @@ export interface ListSubscriptionsOptions {
 // Catalog
 // ---------------------------------------------------------------------------
 
-export interface ListCatalogOptions {
+export interface ListCatalogOptions extends RequestOptions {
   category?: string;
   search?: string;
   limit?: number;
@@ -423,7 +454,7 @@ export interface CatalogEntry {
 // Apps
 // ---------------------------------------------------------------------------
 
-export interface ListAppsOptions {
+export interface ListAppsOptions extends RequestOptions {
   type?: "connector" | "ranker";
   search?: string;
   limit?: number;
@@ -442,7 +473,7 @@ export interface App {
 // Usage
 // ---------------------------------------------------------------------------
 
-export interface GetUsageOptions {
+export interface GetUsageOptions extends RequestOptions {
   period?: string;
 }
 

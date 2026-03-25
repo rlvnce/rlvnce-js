@@ -7,6 +7,7 @@ import type {
   ListCrawlErrorsOptions,
   CrawlSchedule,
   SourcesListResponse,
+  RequestOptions,
 } from "../types.js";
 
 export async function triggerCrawl(
@@ -16,9 +17,8 @@ export async function triggerCrawl(
 ): Promise<CrawlJob> {
   let resolvedSourceId = options?.source_id;
 
-  // Resolve source_url to source_id if provided
   if (options?.source_url && !resolvedSourceId) {
-    const sourcesResp = await http.get<SourcesListResponse>(`/v1/corpora/${corpusId}/sources`);
+    const sourcesResp = await http.get<SourcesListResponse>(`/v1/corpora/${corpusId}/sources`, undefined, options);
     const sources = sourcesResp.sources ?? [];
     const match = sources.find((s) => s.url === options.source_url);
     if (!match) {
@@ -34,6 +34,7 @@ export async function triggerCrawl(
   return http.post<CrawlJob>(
     `/v1/corpora/${corpusId}/crawls`,
     Object.keys(body).length > 0 ? body : undefined,
+    options,
   );
 }
 
@@ -41,16 +42,18 @@ export async function cancelCrawl(
   http: HttpTransport,
   corpusId: string,
   jobId: string,
+  options?: RequestOptions,
 ): Promise<Record<string, unknown>> {
-  return http.post<Record<string, unknown>>(`/v1/corpora/${corpusId}/crawls/${jobId}/cancel`);
+  return http.post<Record<string, unknown>>(`/v1/corpora/${corpusId}/crawls/${jobId}/cancel`, undefined, options);
 }
 
 export async function getCrawlStatus(
   http: HttpTransport,
   corpusId: string,
   jobId: string,
+  options?: RequestOptions,
 ): Promise<CrawlJob> {
-  return http.get<CrawlJob>(`/v1/corpora/${corpusId}/crawls/${jobId}`);
+  return http.get<CrawlJob>(`/v1/corpora/${corpusId}/crawls/${jobId}`, undefined, options);
 }
 
 export async function listCrawls(
@@ -61,7 +64,7 @@ export async function listCrawls(
   const params: Record<string, string | undefined> = {};
   if (options?.limit !== undefined) params.limit = String(options.limit);
   if (options?.offset !== undefined) params.offset = String(options.offset);
-  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/crawls`, params);
+  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/crawls`, params, options);
 }
 
 export async function listCrawlResults(
@@ -74,7 +77,7 @@ export async function listCrawlResults(
   if (options?.status) params.status = options.status;
   if (options?.limit !== undefined) params.limit = String(options.limit);
   if (options?.cursor) params.cursor = options.cursor;
-  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/crawls/${jobId}/tasks`, params);
+  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/crawls/${jobId}/tasks`, params, options);
 }
 
 export async function listCrawlErrors(
@@ -86,12 +89,13 @@ export async function listCrawlErrors(
   const params: Record<string, string | undefined> = {};
   if (options?.limit !== undefined) params.limit = String(options.limit);
   if (options?.cursor) params.cursor = options.cursor;
-  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/crawls/${jobId}/errors`, params);
+  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/crawls/${jobId}/errors`, params, options);
 }
 
 export async function getCrawlSchedule(
   http: HttpTransport,
   corpusId: string,
+  options?: RequestOptions,
 ): Promise<CrawlSchedule> {
-  return http.get<CrawlSchedule>(`/v1/corpora/${corpusId}/crawls/schedule`);
+  return http.get<CrawlSchedule>(`/v1/corpora/${corpusId}/crawls/schedule`, undefined, options);
 }

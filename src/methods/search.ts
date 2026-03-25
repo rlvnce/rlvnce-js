@@ -3,11 +3,10 @@ import type {
   SearchOptions,
   SearchResponse,
   Document,
-  DocumentSummary,
   ListDocumentsOptions,
   SampleDocumentsOptions,
   ListChangesOptions,
-  Change,
+  RequestOptions,
 } from "../types.js";
 
 export async function search(
@@ -22,15 +21,16 @@ export async function search(
   if (options?.filters) body.filters = options.filters;
   if (options?.attribute_filters) body.attribute_filters = options.attribute_filters;
   if (options?.attribute_boosts) body.attribute_boosts = options.attribute_boosts;
-  return http.post<SearchResponse>(`/v1/corpora/${corpusId}/search`, body);
+  return http.post<SearchResponse>(`/v1/corpora/${corpusId}/search`, body, options);
 }
 
 export async function getDocument(
   http: HttpTransport,
   corpusId: string,
   documentId: string,
+  options?: RequestOptions,
 ): Promise<Document> {
-  return http.get<Document>(`/v1/corpora/${corpusId}/documents/${documentId}`);
+  return http.get<Document>(`/v1/corpora/${corpusId}/documents/${documentId}`, undefined, options);
 }
 
 export async function listDocuments(
@@ -46,7 +46,7 @@ export async function listDocuments(
   if (options?.indexed_before) params.indexed_before = options.indexed_before;
   if (options?.limit !== undefined) params.limit = String(options.limit);
   if (options?.cursor) params.cursor = options.cursor;
-  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/documents`, params);
+  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/documents`, params, options);
 }
 
 export async function sampleDocuments(
@@ -56,7 +56,7 @@ export async function sampleDocuments(
 ): Promise<Record<string, unknown>> {
   const params: Record<string, string | undefined> = {};
   if (options?.n !== undefined) params.n = String(options.n);
-  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/documents/sample`, params);
+  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/documents/sample`, params, options);
 }
 
 export async function listChanges(
@@ -69,5 +69,5 @@ export async function listChanges(
   if (options?.limit !== undefined) params.limit = String(options.limit);
   if (options?.cursor) params.cursor = options.cursor;
   if (options?.types) params.types = options.types;
-  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/changes`, params);
+  return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/changes`, params, options);
 }
