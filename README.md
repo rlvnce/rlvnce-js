@@ -616,8 +616,8 @@ try {
 
 ```bash
 cd clients/rlvnce-js
-npm install
-npm run lint       # tsc --noEmit
-npm test           # vitest
-npm run build      # tsup → dist/ (ESM + CJS + .d.ts)
+pnpm install
+pnpm run lint       # tsc --noEmit
+pnpm test           # vitest
+pnpm run build      # tsup → dist/ (ESM + CJS + .d.ts)
 ```
