@@ -38,17 +38,27 @@ describe("search", () => {
   });
 });
 
-describe("getDocument", () => {
-  it("fetches document by ID", async () => {
+describe("viewCache", () => {
+  it("fetches cached page by document ID", async () => {
+    const fetch = mockFetch({ url: "https://example.com", title: "Test", body: "content" });
+    const client = createClient(fetch);
+    const doc = await client.viewCache("corpus-1", "doc-1");
+
+    expect(doc.url).toBe("https://example.com");
+    expect(doc.title).toBe("Test");
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toContain("/v1/corpora/corpus-1/cache/doc-1");
+    expect(init.method).toBe("GET");
+  });
+
+  it("getDocument still works as deprecated alias", async () => {
     const fetch = mockFetch({ url: "https://example.com", title: "Test", body: "content" });
     const client = createClient(fetch);
     const doc = await client.getDocument("corpus-1", "doc-1");
 
     expect(doc.url).toBe("https://example.com");
-    expect(doc.title).toBe("Test");
-    const [url, init] = fetch.mock.calls[0];
-    expect(url).toContain("/v1/corpora/corpus-1/documents/doc-1");
-    expect(init.method).toBe("GET");
+    const [url] = fetch.mock.calls[0];
+    expect(url).toContain("/v1/corpora/corpus-1/cache/doc-1");
   });
 });
 

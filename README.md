@@ -197,7 +197,16 @@ Full-text search over a corpus. See [Search](#search) section above for detailed
 
 **Returns:** `SearchResponse` — `{ results: SearchResult[], total?, query_ms? }`
 
-#### `getDocument(corpusId, documentId)`
+#### `viewCache(corpusId, documentId)`
+
+View the cached version of a page by document ID.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `corpusId` | `string` | UUID of the corpus |
+| `documentId` | `string` | Document ID (from search results as `doc_id`) |
+
+#### `getDocument(corpusId, documentId)` *(deprecated — use `viewCache`)*
 
 Fetch a document's full content and metadata.
 
