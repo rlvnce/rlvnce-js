@@ -275,16 +275,23 @@ export class RlvnceClient {
     this.http = new HttpTransport(options);
   }
 
-  // ---- Search & Documents ----
+  // ---- Search & Cache ----
 
   /** Full-text search over a corpus. */
   async search(corpusId: string, query: string, options?: SearchOptions): Promise<SearchResponse> {
     return searchMethods.search(this.http, corpusId, query, options);
   }
 
-  /** Fetch a document's full content and metadata by ID. */
+  /** View the cached version of a page by document ID. */
+  async viewCache(corpusId: string, documentId: string, options?: RequestOptions): Promise<Document> {
+    return searchMethods.viewCache(this.http, corpusId, documentId, options);
+  }
+
+  /**
+   * @deprecated Use `viewCache()` instead.
+   */
   async getDocument(corpusId: string, documentId: string, options?: RequestOptions): Promise<Document> {
-    return searchMethods.getDocument(this.http, corpusId, documentId, options);
+    return searchMethods.viewCache(this.http, corpusId, documentId, options);
   }
 
   /** List documents in a corpus with optional filtering (single page). */

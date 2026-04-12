@@ -25,14 +25,17 @@ export async function search(
   return http.post<SearchResponse>(`/v1/corpora/${corpusId}/search`, body, options);
 }
 
-export async function getDocument(
+export async function viewCache(
   http: HttpTransport,
   corpusId: string,
   documentId: string,
   options?: RequestOptions,
 ): Promise<Document> {
-  return http.get<Document>(`/v1/corpora/${corpusId}/documents/${documentId}`, undefined, options);
+  return http.get<Document>(`/v1/corpora/${corpusId}/cache/${documentId}`, undefined, options);
 }
+
+/** @deprecated Use `viewCache` instead. */
+export const getDocument = viewCache;
 
 export async function listDocuments(
   http: HttpTransport,
