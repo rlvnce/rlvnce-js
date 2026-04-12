@@ -303,6 +303,11 @@ export interface DocumentSummary {
 }
 
 export interface ListDocumentsOptions extends RequestOptions {
+  source_id?: string;
+  content_type?: string;
+  url_prefix?: string;
+  indexed_after?: string;
+  indexed_before?: string;
   limit?: number;
   cursor?: string;
 }

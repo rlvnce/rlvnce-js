@@ -43,6 +43,11 @@ export async function listDocuments(
   options?: ListDocumentsOptions,
 ): Promise<Record<string, unknown>> {
   const params: Record<string, string | undefined> = {};
+  if (options?.source_id) params.source_id = options.source_id;
+  if (options?.content_type) params.content_type = options.content_type;
+  if (options?.url_prefix) params.url_prefix = options.url_prefix;
+  if (options?.indexed_after) params.indexed_after = options.indexed_after;
+  if (options?.indexed_before) params.indexed_before = options.indexed_before;
   if (options?.limit !== undefined) params.limit = String(options.limit);
   if (options?.cursor) params.cursor = options.cursor;
   return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/documents`, params, options);
