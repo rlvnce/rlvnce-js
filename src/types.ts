@@ -298,22 +298,16 @@ export interface Document {
 }
 
 export interface DocumentSummary {
-  id?: string;
-  doc_id?: string;
-  url: string;
-  title?: string;
-  content_type?: string;
-  created_at?: string;
-  updated_at?: string;
+  document_id: string;
   [key: string]: unknown;
 }
 
 export interface ListDocumentsOptions extends RequestOptions {
-  source_id?: string;
-  content_type?: string;
-  url_prefix?: string;
-  indexed_after?: string;
-  indexed_before?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListDocumentVersionsOptions extends RequestOptions {
   limit?: number;
   cursor?: string;
 }

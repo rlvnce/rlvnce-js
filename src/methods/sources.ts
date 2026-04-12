@@ -68,6 +68,15 @@ export async function listSourceUrls(
   return http.get<Record<string, unknown>>(`/v1/corpora/${corpusId}/sources/${sourceId}/urls`, params, options);
 }
 
+export async function resetSource(
+  http: HttpTransport,
+  corpusId: string,
+  sourceId: string,
+  options?: RequestOptions,
+): Promise<SourceStats> {
+  return http.post<SourceStats>(`/v1/corpora/${corpusId}/sources/${sourceId}/reset`, undefined, options);
+}
+
 export async function updateSource(
   http: HttpTransport,
   corpusId: string,

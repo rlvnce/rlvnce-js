@@ -223,6 +223,31 @@ Paginated document metadata list (no body content). Use `listAllDocuments()` for
 | `options.limit` | `number` | Max documents per page (1-200, default 50) |
 | `options.cursor` | `string` | Pagination cursor from previous response |
 
+#### `listDocumentVersions(corpusId, documentId, options?)`
+
+List historical versions of a document (paginated). Returns version IDs (UUIDv7, time-sorted).
+
+| Parameter | Type | Description |
+|---|---|---|
+| `corpusId` | `string` | UUID of the corpus |
+| `documentId` | `string` | Document ID (from search results as `doc_id`) |
+| `options.limit` | `number` | Max versions per page (1-100, default 20) |
+| `options.cursor` | `string` | Pagination cursor (version_id from previous page) |
+
+**Returns:** `{ document_id, corpus_id, versions: VersionEntry[], has_more, cursor? }`
+
+#### `getDocumentVersion(corpusId, documentId, versionId)`
+
+Fetch a specific historical version of a document. Returns the full cached content as it was at crawl time. Counts against the document fetch quota.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `corpusId` | `string` | UUID of the corpus |
+| `documentId` | `string` | Document ID (from search results as `doc_id`) |
+| `versionId` | `string` | Version ID (UUIDv7, from `listDocumentVersions`) |
+
+**Returns:** `Document` — `{ url, title?, body?, headings?, language?, content_type?, created_at?, updated_at? }`
+
 #### `sampleDocuments(corpusId, options?)`
 
 Fetch N random documents for extraction quality spot-checks.

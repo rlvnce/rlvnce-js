@@ -179,8 +179,13 @@ export async function cloneCorpus(
   // Step 1: Get source corpus
   const sourceCorpus = await http.get<Corpus>(`/v1/corpora/${sourceCorpusId}`);
 
-  // Step 2: Get sources
-  const sourcesResp = await http.get<SourcesListResponse>(`/v1/corpora/${sourceCorpusId}/sources`);
+  // Step 2: Get sources and policy in parallel
+  const [sourcesResp, sourcePolicy] = await Promise.all([
+    http.get<SourcesListResponse>(`/v1/corpora/${sourceCorpusId}/sources`),
+    params.copy_policy !== false
+      ? http.get<Policy>(`/v1/corpora/${sourceCorpusId}/policy`).catch(() => null)
+      : Promise.resolve(null),
+  ]);
   let allSources = sourcesResp.sources ?? [];
 
   // Step 3: Apply filter
@@ -200,11 +205,19 @@ export async function cloneCorpus(
     throw new Error("No sources match the filter.");
   }
 
-  // Step 4: Create new corpus
-  const newCorpus = await http.post<Corpus>("/v1/corpora", {
+  // Step 4: Create new corpus (preserve connector/ranker app IDs)
+  const createBody: Record<string, unknown> = {
     name: params.name,
-    ...(params.description != null ? { description: params.description } : {}),
-  });
+    description: params.description ?? (sourceCorpus as Record<string, unknown>).description ?? "",
+  };
+  if ((sourceCorpus as Record<string, unknown>).connector_app_id) {
+    createBody.connector_app_id = (sourceCorpus as Record<string, unknown>).connector_app_id;
+  }
+  const rankerAppId = (sourcePolicy?.search as Record<string, unknown> | undefined)?.ranker_app_id;
+  if (rankerAppId) {
+    createBody.ranker_app_id = rankerAppId;
+  }
+  const newCorpus = await http.post<Corpus>("/v1/corpora", createBody);
 
   const result: CloneCorpusResult = {
     source_corpus: { id: sourceCorpusId, name: sourceCorpus.name },
@@ -212,11 +225,14 @@ export async function cloneCorpus(
     sources: [],
   };
 
-  // Step 5: Add sources
+  // Step 5: Add sources (preserve per-source config overrides)
   for (const source of allSources) {
     try {
       const body: Record<string, unknown> = { url: source.url };
       if (source.source_config) body.source_config = source.source_config;
+      const s = source as Record<string, unknown>;
+      if (s.connector_config_override) body.connector_config_override = s.connector_config_override;
+      if (s.crawl_defense_override) body.crawl_defense_override = s.crawl_defense_override;
       const created = await http.post(`/v1/corpora/${newCorpus.id}/sources`, body);
       result.sources.push({ url: source.url, source: created });
     } catch (err) {
@@ -226,13 +242,18 @@ export async function cloneCorpus(
     }
   }
 
-  // Step 6: Copy policy
-  if (params.copy_policy !== false) {
+  // Step 6: Copy policy (strip server-managed fields)
+  if (sourcePolicy) {
     try {
-      const policy = await http.get<Policy>(`/v1/corpora/${sourceCorpusId}/policy`);
       const policyBody: Record<string, unknown> = {};
-      if (policy.crawl) policyBody.crawl = policy.crawl;
-      if (policy.search) policyBody.search = policy.search;
+      if (sourcePolicy.crawl) {
+        const { corpus_id: _, updated_at: __, ...crawl } = sourcePolicy.crawl as Record<string, unknown>;
+        policyBody.crawl = crawl;
+      }
+      if (sourcePolicy.search) {
+        const { corpus_id: _, updated_at: __, ...search } = sourcePolicy.search as Record<string, unknown>;
+        policyBody.search = search;
+      }
       if (Object.keys(policyBody).length > 0) {
         result.policy = await http.patch<Policy>(`/v1/corpora/${newCorpus.id}/policy`, policyBody);
       }

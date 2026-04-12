@@ -9,7 +9,7 @@ import type {
   DeleteCorpusResult, CloneCorpusParams, CloneCorpusResult,
   // Search & Documents
   SearchOptions, SearchResponse, Document, DocumentSummary,
-  ListDocumentsOptions, SampleDocumentsOptions,
+  ListDocumentsOptions, ListDocumentVersionsOptions, SampleDocumentsOptions,
   ListChangesOptions, Change,
   // Sources
   SourceInput, Source, SourcesListResponse, SourceStats,
@@ -300,9 +300,24 @@ export class RlvnceClient {
     );
   }
 
-  /** Fetch N random documents for quality spot-checks. */
+  /** Fetch N random documents for quality spot-checks (full body, no truncation). */
   async sampleDocuments(corpusId: string, options?: SampleDocumentsOptions): Promise<Record<string, unknown>> {
     return searchMethods.sampleDocuments(this.http, corpusId, options);
+  }
+
+  /** Fetch provenance metadata for a document. */
+  async getDocumentProvenance(corpusId: string, documentId: string, options?: RequestOptions): Promise<Record<string, unknown>> {
+    return searchMethods.getDocumentProvenance(this.http, corpusId, documentId, options);
+  }
+
+  /** List versions of a document (paginated). */
+  async listDocumentVersions(corpusId: string, documentId: string, options?: ListDocumentVersionsOptions): Promise<Record<string, unknown>> {
+    return searchMethods.listDocumentVersions(this.http, corpusId, documentId, options);
+  }
+
+  /** Fetch a specific version of a document. */
+  async getDocumentVersion(corpusId: string, documentId: string, versionId: string, options?: RequestOptions): Promise<Document> {
+    return searchMethods.getDocumentVersion(this.http, corpusId, documentId, versionId, options);
   }
 
   /** List document changes since a timestamp (single page). */
@@ -401,6 +416,11 @@ export class RlvnceClient {
   /** Update a source's config (merge semantics). */
   async updateSource(corpusId: string, sourceId: string, sourceConfig: Record<string, unknown>): Promise<Source> {
     return sourcesMethods.updateSource(this.http, corpusId, sourceId, sourceConfig);
+  }
+
+  /** Reset the circuit breaker for a source (clears consecutive failures). */
+  async resetSource(corpusId: string, sourceId: string): Promise<SourceStats> {
+    return sourcesMethods.resetSource(this.http, corpusId, sourceId);
   }
 
   // ---- Crawls ----
